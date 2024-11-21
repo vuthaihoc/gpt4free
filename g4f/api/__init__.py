@@ -5,6 +5,7 @@ import json
 import uvicorn
 import secrets
 import os
+import base64
 
 from fastapi import FastAPI, Response, Request
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, JSONResponse
@@ -23,7 +24,7 @@ import g4f.debug
 from g4f.client import AsyncClient, ChatCompletion
 from g4f.providers.response import BaseConversation
 from g4f.client.helper import filter_none
-from g4f.image import is_accepted_format, images_dir
+from g4f.image import is_accepted_format, images_dir, to_image, to_data_uri
 from g4f.typing import Messages
 from g4f.cookies import read_cookie_files
 
@@ -201,6 +202,15 @@ class Api:
                         if config.provider in self.conversations[config.conversation_id]:
                             conversation = self.conversations[config.conversation_id][config.provider]
 
+                json_image = await request.json()
+                if 'image' in json_image:
+                    image_name = json_image['image_name']
+                    image = to_image(base64.b64decode(json_image['image']), image_name.endswith('.svg'))
+                else:
+                    image_name = None
+                    image = None
+
+
                 # Create the completion response
                 response = self.client.chat.completions.create(
                     **filter_none(
@@ -215,8 +225,10 @@ class Api:
                                 "conversation": conversation
                             }
                         },
-                        ignored=AppConfig.ignored_providers
-                    ),
+                        ignored=AppConfig.ignored_providers,
+                        image = image,
+                        image_name = image_name
+                    )
                 )
 
                 if not config.stream:
